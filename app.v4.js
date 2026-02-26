@@ -609,8 +609,9 @@ const host = "peter-principal-headlines-plug.trycloudflare.com";
             source.connect(audioContext.destination);
 
             // Agenda chunks em sequência para evitar cortes/overlaps
-            if (audioPlaybackTime < audioContext.currentTime) {
-                audioPlaybackTime = audioContext.currentTime;
+            // Adiciona um pequeno buffer de 100ms se estivermos muito próximos do tempo atual (evita stuttering)
+            if (audioPlaybackTime < audioContext.currentTime + 0.1) {
+                audioPlaybackTime = audioContext.currentTime + 0.1;
             }
             source.start(audioPlaybackTime);
             audioPlaybackTime += audioBuffer.duration;
@@ -1376,4 +1377,42 @@ function musicRepeat() {
         btn.classList.toggle('text-gray-500', !_musicRepeat);
     }
     // Repeat não é suportado pela msc_api — apenas UI
+}
+
+// --- Mobile and Sidebar Toggle Logic ---
+function toggleMobileMenu() {
+    const mobileMenu = document.getElementById('mobile-menu');
+    const desktopWidgets = document.getElementById('widgets-container');
+    const mobileWidgets = document.getElementById('mobile-widgets-container');
+    
+    if (!mobileMenu || !desktopWidgets || !mobileWidgets) return;
+
+    if (mobileMenu.classList.contains('hidden')) {
+        // Abrindo: mover widgets para o menu mobile
+        while (desktopWidgets.firstChild) {
+            mobileWidgets.appendChild(desktopWidgets.firstChild);
+        }
+        mobileMenu.classList.remove('hidden');
+        setTimeout(() => mobileMenu.classList.remove('opacity-0'), 10);
+    } else {
+        // Fechando: devolver widgets para o desktop
+        while (mobileWidgets.firstChild) {
+            desktopWidgets.appendChild(mobileWidgets.firstChild);
+        }
+        mobileMenu.classList.add('opacity-0');
+        setTimeout(() => mobileMenu.classList.add('hidden'), 300);
+    }
+}
+
+function toggleVisualPanel() {
+    const panel = document.getElementById('visual-panel');
+    if (!panel) return;
+    
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+    } else {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+    }
 }
