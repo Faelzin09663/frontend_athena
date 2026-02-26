@@ -493,18 +493,34 @@ let _musicQueueCount = 0;
 let _musicPaused = false;
 
 // --- Microphone Toggle Logic ---
-// --- Microphone Toggle Logic ---
-let micMuted = false;
+let micMuted = true;
+let isMicCaptured = false;
 
 function initMicToggle() {
-    updateMicButton(false);
+    updateMicButton(true);
     micToggleBtn.addEventListener('click', toggleMic);
     initAudioStreaming();
+    
+    // Tenta desbloquear o áudio ao primeiro clique na tela (mobile)
+    document.body.addEventListener('click', () => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+    }, { once: true });
 }
 
 function toggleMic() {
     micMuted = !micMuted;
     updateMicButton(micMuted);
+    
+    if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+    
+    if (!micMuted && !isMicCaptured) {
+        startAudioCapture();
+        isMicCaptured = true;
+    }
 }
 
 function updateMicButton(muted) {
@@ -538,7 +554,7 @@ const host = "peter-principal-headlines-plug.trycloudflare.com";
     
     audioInWs.onopen = () => {
         console.log("[Audio] Audio IN WebSocket connected");
-        startAudioCapture();
+        // startAudioCapture() was moved to toggleMic to allow user gesture
     };
     
     audioOutWs = new WebSocket(`${protocol}//${host}/ws/audio_out`);
