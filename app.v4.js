@@ -26,7 +26,7 @@ function init() {
 
 // --- WebSocket Setup ---
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = `wss://peter-principal-headlines-plug.trycloudflare.com/ws`;
+const wsUrl = `${protocol}//${window.location.host}/ws`;
 let ws;
 
 function connect() {
@@ -182,8 +182,7 @@ textInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-const API_URL = "https://peter-principal-headlines-plug.trycloudflare.com";
-
+const API_URL = window.location.protocol + '//' + window.location.host;
 async function sendMessage() {
     const text = textInput.value.trim();
     if (!text && !activeAttachment) return;
@@ -658,9 +657,9 @@ let audioProcessor;
 
 async function initAudioStreaming() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const host = "peter-principal-headlines-plug.trycloudflare.com";
+    const host = window.location.host;
     
-    audioInWs = new WebSocket(`wss://${host}/ws/audio_in`);
+    audioInWs = new WebSocket(`${protocol}//${host}/ws/audio_in`);
     audioInWs.binaryType = 'arraybuffer';
     
     audioInWs.onopen = () => {
