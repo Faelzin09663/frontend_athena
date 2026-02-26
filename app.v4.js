@@ -513,7 +513,11 @@ function toggleMic() {
     micMuted = !micMuted;
     updateMicButton(micMuted);
     
-    if (audioContext && audioContext.state === 'suspended') {
+    // Safari iOS: MUST create/resume AudioContext inside a trusted user event (click)
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
     
@@ -624,9 +628,12 @@ async function startAudioCapture(deviceId = null) {
         const constraints = { audio: deviceId ? { deviceId: { exact: deviceId } } : true };
         micStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-        // Usa a taxa de amostragem nativa do dispositivo e faz downsample para 16 kHz manualmente.
+        // Safari iOS: Ensure AudioContext exists (created in toggleMic) or create if fallback
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
         }
 
         const source = audioContext.createMediaStreamSource(micStream);
