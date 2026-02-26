@@ -493,13 +493,28 @@ let _musicQueueCount = 0;
 let _musicPaused = false;
 
 // --- Microphone Toggle Logic ---
+// --- Microphone Toggle Logic ---
 let micMuted = true;
 let isMicCaptured = false;
+let isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || navigator.maxTouchPoints > 0;
+let mediaRecorder;
+let audioChunks = [];
+let recordingStartTime;
+let recordingInterval;
 
 function initMicToggle() {
     updateMicButton(true);
-    micToggleBtn.addEventListener('click', toggleMic);
-    initAudioStreaming();
+    
+    if (isMobileDevice) {
+        // Mobile: Modo "Mensagem de Voz" (Hold to Record)
+        micToggleBtn.addEventListener('touchstart', startVoiceMessage, {passive: true});
+        micToggleBtn.addEventListener('touchend', stopVoiceMessage);
+        micToggleBtn.addEventListener('touchcancel', stopVoiceMessage);
+    } else {
+        // PC: Modo "Live API" (Toggle on/off)
+        micToggleBtn.addEventListener('click', toggleMic);
+        initAudioStreaming(); // Sobe os WebSockets de Live Audio pro PC
+    }
     
     // Tenta desbloquear o áudio ao primeiro clique na tela (mobile)
     document.body.addEventListener('click', () => {
@@ -509,11 +524,15 @@ function initMicToggle() {
     }, { once: true });
 }
 
+// ==============================
+// MODO PC: LIVE API (WEBRTC)
+// ==============================
 function toggleMic() {
+    if (isMobileDevice) return; // Segurança
+    
     micMuted = !micMuted;
     updateMicButton(micMuted);
     
-    // Safari iOS: MUST create/resume AudioContext inside a trusted user event (click)
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
@@ -524,6 +543,94 @@ function toggleMic() {
     if (!micMuted && !isMicCaptured) {
         startAudioCapture();
         isMicCaptured = true;
+    }
+}
+
+// ==============================
+// MODO MOBILE: VOICE MESSAGE
+// ==============================
+async function startVoiceMessage(e) {
+    if (!isMobileDevice) return;
+    
+    micToggleBtn.classList.add('bg-red-500', 'animate-pulse');
+    micToggleBtn.classList.remove('bg-green-600');
+    micToggleBtn.innerHTML = '<i class="fa-solid fa-microphone-lines"></i>';
+    
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+            micToggleBtn.classList.remove('bg-red-500', 'animate-pulse');
+            micToggleBtn.classList.add('bg-green-600');
+            micToggleBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            updateMicButton(true); // Reseta a cor de mute
+            
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            
+            // Só envia se tiver mais de 1 segundo
+            if (Date.now() - recordingStartTime > 1000) {
+                await sendVoiceMessage(audioBlob);
+            }
+            
+            // Limpa as tracks do microfone pra não ficar com ícone de gravando no celular
+            stream.getTracks().forEach(track => track.stop());
+        };
+        
+        recordingStartTime = Date.now();
+        mediaRecorder.start();
+    } catch (err) {
+        console.error("Erro ao acessar microfone para mensagem de voz:", err);
+        micToggleBtn.classList.remove('bg-red-500', 'animate-pulse');
+        updateMicButton(true);
+    }
+}
+
+function stopVoiceMessage(e) {
+    if (!isMobileDevice || !mediaRecorder || mediaRecorder.state === 'inactive') return;
+    mediaRecorder.stop();
+}
+
+async function sendVoiceMessage(audioBlob) {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "voice_message.webm");
+    
+    // Mostra indicador de digitação no chat
+    const chatHistory = document.getElementById('chat-history');
+    const loadingId = "loader-" + Date.now();
+    const loadingHtml = `<div id="${loadingId}" class="flex justify-start mb-4"><div class="bg-gray-800 rounded-2xl rounded-tl-sm p-4 animate-pulse text-gray-400"><i class="fa-solid fa-microphone-lines mr-2"></i> Transcrevendo áudio...</div></div>`;
+    chatHistory.insertAdjacentHTML('beforeend', loadingHtml);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+
+    try {
+        // Envia o áudio para o servidor
+        const uploadRes = await fetch(`${API_URL}/api/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        const uploadData = await uploadRes.json();
+        
+        if (uploadData.saved_path) {
+            // Repassa pro chat
+            await fetch(`${API_URL}/api/chat/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    text: "Mensagem de voz.", 
+                    attachment_path: uploadData.saved_path 
+                })
+            });
+        }
+    } catch (err) {
+        console.error("[Voice Message] Falha no upload:", err);
+    } finally {
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
     }
 }
 
