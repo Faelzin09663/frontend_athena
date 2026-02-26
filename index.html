@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Athena AI 2.0 (v3.0)</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/style.css?v=3.0" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="/static/style.css" rel="stylesheet">
+    
+    <!-- Animações customizadas no Tailwind -->
+    <style type="text/tailwindcss">
+        @theme {
+            --color-glass: rgba(255, 255, 255, 0.03);
+            --color-glass-border: rgba(255, 255, 255, 0.08);
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast-enter {
+            animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .toast-exit {
+            animation: slideOutRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gemini: {
+                            start: '#4b90ff',
+                            end: '#ff5546',
+                        },
+                        glass: 'rgba(255, 255, 255, 0.05)',
+                        'glass-border': 'rgba(255, 255, 255, 0.1)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-950 text-white h-screen flex flex-col md:flex-row overflow-hidden font-sans">
+    
+    <!-- Background Gradient -->
+    <div class="fixed inset-0 z-0 pointer-events-none opacity-20 bg-gradient-to-br from-blue-900 via-gray-900 to-purple-900"></div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- MOBILE OVERLAY (Menu) -->
+    <div id="mobile-menu" class="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex flex-col p-6 hidden transition-opacity">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-xl font-bold tracking-tight">Athena <span class="text-blue-400">2.0</span></h1>
+            <button onclick="toggleMobileMenu()" class="text-2xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="space-y-6 flex-1 overflow-y-auto" id="mobile-widgets-container">
+            <!-- Widgets will be moved here on mobile if needed or duplicated -->
+        </div>
+    </div>
+
+    <!-- LEFT SIDEBAR: Widgets (Dashboard) -->
+    <aside id="sidebar" class="w-72 bg-black/40 border-r border-glass-border backdrop-blur-md z-20 flex-col hidden md:flex transition-all">
+        <div class="p-6 border-b border-glass-border flex items-center gap-3">
+             <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-gemini-start to-gemini-end flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-sparkles text-white text-xs"></i>
+            </div>
+            <h1 class="text-lg font-bold tracking-tight">Athena <span class="text-blue-400">2.0</span></h1>
+        </div>
+
+        <div class="px-6 py-4 border-b border-glass-border bg-blue-500/5">
+            <div class="flex justify-between items-center mb-1">
+                <h3 class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Projeto Ativo</h3>
+                <i class="fa-solid fa-folder-open text-blue-400 text-[10px]"></i>
+            </div>
+            <div id="current-project-display" class="text-sm font-medium text-gray-200 truncate">Carregando...</div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-6" id="widgets-container">
+
+            <!-- Music Widget -->
+            <div class="rounded-xl bg-glass border border-glass-border p-4 relative group hover:border-green-500/30 transition-all" id="music-widget">
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Music</h3>
+                    <span id="music-playlist-name" class="text-[10px] text-gray-500 truncate max-w-[110px]">—</span>
+                </div>
+
+                <!-- Thumbnail + Info -->
+                <div class="flex gap-3 items-center mb-3">
+                    <div class="relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-gray-800 shadow-lg">
+                        <img id="music-thumbnail" src="" alt="cover" class="w-full h-full object-cover hidden">
+                        <div id="music-thumb-placeholder" class="w-full h-full flex items-center justify-center text-gray-600">
+                            <i class="fa-solid fa-music text-xl"></i>
+                        </div>
+                        <div id="music-playing-dot" class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-green-400 hidden animate-pulse"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p id="music-title" class="text-xs font-semibold text-white truncate leading-tight">Nenhuma música</p>
+                        <p id="music-queue-count" class="text-[10px] text-gray-500 mt-0.5">0 na fila</p>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="mb-3">
+                    <div class="relative h-1 bg-gray-800 rounded-full cursor-pointer group/bar" id="music-progress-bar" onclick="musicSeekClick(event)">
+                        <div id="music-progress-fill" class="h-full bg-green-500 rounded-full transition-all duration-500 relative" style="width:0%">
+                            <div class="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-md opacity-0 group-hover/bar:opacity-100 transition-opacity -translate-x-1/2"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-1">
+                        <span id="music-time-current" class="text-[9px] text-gray-600">0:00</span>
+                        <span id="music-time-total" class="text-[9px] text-gray-600">0:00</span>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex items-center justify-between mb-3">
+                    <button id="music-btn-shuffle" onclick="musicShuffle()" title="Shuffle" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+                        <i class="fa-solid fa-shuffle text-xs"></i>
+                    </button>
+                    <button onclick="musicPrev()" title="Anterior" class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+                        <i class="fa-solid fa-backward-step text-sm"></i>
+                    </button>
+                    <button id="music-btn-playpause" onclick="musicTogglePlay()" title="Play/Pause"
+                        class="w-9 h-9 flex items-center justify-center rounded-full bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/30 transition-all active:scale-95">
+                        <i class="fa-solid fa-play text-sm" id="music-play-icon"></i>
+                    </button>
+                    <button onclick="musicNext()" title="Próxima" class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+                        <i class="fa-solid fa-forward-step text-sm"></i>
+                    </button>
+                    <button id="music-btn-repeat" onclick="musicRepeat()" title="Repeat" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+                        <i class="fa-solid fa-repeat text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- Search Input -->
+                <div class="flex gap-1.5">
+                    <input id="music-search-input" type="text" placeholder="Buscar música... (Enter para tocar)" autocomplete="off"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();musicSearchDirect();}"
+                        class="flex-1 bg-black/40 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white text-[11px] placeholder-gray-600 focus:border-green-500/50 outline-none transition-colors min-w-0">
+                    <button onclick="musicSearchDirect()" id="music-search-btn" class="px-3 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-green-600 hover:bg-green-500 text-white text-[10px] font-semibold transition-colors gap-1">
+                        <i class="fa-solid fa-play text-[9px]"></i> Tocar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Weather Widget -->
+            <div class="rounded-xl bg-glass border border-glass-border p-4 relative group hover:border-blue-500/30 transition-all">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Weather</h3>
+                    <i class="fa-solid fa-cloud-sun text-yellow-500"></i>
+                </div>
+                <div id="weather-widget">
+                    <div class="text-2xl font-bold">--°C</div>
+                    <div class="text-sm text-gray-400">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Calendar Widget -->
+            <div class="rounded-xl bg-glass border border-glass-border p-4 relative group hover:border-red-500/30 transition-all flex flex-col h-48">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Upcoming Events</h3>
+                    <i class="fa-regular fa-calendar text-red-400"></i>
+                </div>
+                
+                <div id="calendar-list" class="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-none">
+                     <div class="text-center text-gray-600 text-xs mt-6">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Tasks Widget -->
+            <div class="rounded-xl bg-glass border border-glass-border p-4 relative group hover:border-purple-500/30 transition-all flex flex-col h-64">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">My Tasks</h3>
+                    <button class="text-gray-500 hover:text-white transition-colors" onclick="openTaskModal()"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                
+                <div id="task-list" class="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-none">
+                    <div class="text-center text-gray-600 text-xs mt-10">No pending tasks</div>
+                </div>
+            </div>
+
+
+
+        </div>
+
+
+        <!-- Connection Status & Settings -->
+        <div class="p-4 border-t border-glass-border bg-black/20 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2 cursor-pointer group hover:bg-white/5 p-2 rounded-lg transition-colors flex-1" id="status-container">
+                <div class="relative flex items-center justify-center">
+                    <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-500 z-10 relative shadow-[0_0_8px_rgba(234,179,8,0.6)]"></div>
+                    <div class="absolute w-4 h-4 bg-yellow-500/30 rounded-full animate-ping z-0"></div>
+                </div>
+                <span id="status-text" class="text-xs text-gray-400 group-hover:text-gray-200 transition-colors font-medium">Connecting...</span>
+            </div>
+            
+            <button onclick="toggleDevModal(true)" title="Developer Logs" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+                <i class="fa-solid fa-terminal"></i>
+            </button>
+
+            <button onclick="toggleSettingsModal(true)" title="Configurações" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- CENTER: Chat -->
+    <main class="flex-1 z-10 flex flex-col relative w-full h-full">
+        
+        <!-- Header (Mobile/Tablet Only) -->
+        <header class="md:hidden p-4 border-b border-glass-border bg-black/60 backdrop-blur-md flex justify-between items-center z-30">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMobileMenu()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-bars-staggered text-xl"></i></button>
+                <span class="font-bold">Athena <span class="text-blue-400">2.0</span></span>
+            </div>
+            <div class="flex items-center gap-3">
+                 <button onclick="resetChat()" class="text-gray-400 hover:text-white mr-2" title="Nova Conversa"><i class="fa-solid fa-plus"></i></button>
+                 <button onclick="openSettingsModal()" class="text-gray-400 hover:text-white mr-2"><i class="fa-solid fa-gear"></i></button>
+                <button onclick="toggleVisualPanel()" class="lg:hidden text-gray-400 hover:text-white"><i class="fa-solid fa-eye text-lg"></i></button>
+                <div class="w-2 h-2 rounded-full bg-yellow-500" id="status-dot-mobile"></div>
+            </div>
+        </header>
+
+        <!-- Chat History -->
+        <div id="chat-history" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-800">
+             <div class="flex flex-col items-center justify-center h-full text-gray-600 gap-4 opacity-40 select-none">
+                <i class="fa-solid fa-microphone-lines text-5xl"></i>
+                <p class="text-center">Say "Athena" or Type below</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-4 md:p-6 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent">
+            <div class="max-w-3xl mx-auto bg-glass border border-glass-border rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col p-2 gap-2 focus-within:border-blue-500/50 transition-all">
+                
+                <!-- Image Preview Container -->
+                <div id="image-preview-container" class="hidden flex-wrap gap-2 px-4 pt-2">
+                    <!-- Preview items will be injected here -->
+                </div>
+
+                <div class="flex items-center gap-2">
+                
+                <button onclick="document.getElementById('file-upload-input').click()" class="hidden sm:flex w-10 h-10 rounded-full items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors" title="Anexar Arquivo">
+                    <i class="fa-solid fa-paperclip"></i>
+                </button>
+                
+                <button onclick="openCameraModal()" class="hidden sm:flex w-10 h-10 rounded-full items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors" title="Câmera">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+                
+                <button onclick="captureScreen()" class="hidden sm:flex w-10 h-10 rounded-full items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors" title="Capturar Tela">
+                    <i class="fa-solid fa-desktop"></i>
+                </button>
+                
+                <input type="text" id="text-input" placeholder="Message Athena..." class="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 px-3 text-sm md:text-base">
+                
+                <button id="mic-toggle-btn" class="w-10 h-10 rounded-full bg-green-600 hover:bg-green-500 text-white flex items-center justify-center transition-colors shadow-lg shadow-green-600/20" title="Microphone Active">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                
+                <button id="send-btn" class="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-lg shadow-blue-600/20">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                </div>
+            </div>
+             <p class="text-center text-gray-600 text-[10px] md:text-xs mt-2">Athena can make mistakes. Check important info.</p>
+        </div>
+
+    </main>
+
+     <!-- RIGHT SIDEBAR: Sessions List -->
+    <aside id="visual-panel" class="fixed inset-0 lg:relative lg:inset-auto w-full lg:w-80 bg-black/90 lg:bg-black/40 border-l border-glass-border backdrop-blur-md z-40 hidden lg:flex flex-col transform transition-transform duration-300">
+        <div class="p-4 border-b border-glass-border bg-black/20 flex justify-between items-center">
+             <h3 class="font-semibold text-gray-300 text-xs tracking-widest uppercase">Conversas</h3>
+             <button onclick="toggleVisualPanel()" class="lg:hidden text-gray-400"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="flex-1 p-4 overflow-y-auto space-y-2" id="sessions-list">
+            <!-- Sessions will be injected here -->
+             <div class="text-xs text-gray-500 text-center mt-10">Carregando conversas...</div>
+        </div>
+             <!-- Uploaded Files Section -->
+             <div class="mt-4 pt-4 border-t border-glass-border flex-1 flex flex-col min-h-0">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <h3 class="font-semibold text-gray-300 text-xs tracking-widest uppercase">Arquivos</h3>
+                    <button onclick="document.getElementById('file-upload-input').click()" class="text-blue-400 hover:text-blue-300 text-xs" title="Upload"><i class="fa-solid fa-cloud-arrow-up"></i></button>
+                    <input type="file" id="file-upload-input" class="hidden" multiple onchange="handleFileUpload(this.files)">
+                </div>
+                
+                <div id="uploaded-files-list" class="flex-1 overflow-y-auto space-y-2 p-1 scrollbar-thin scrollbar-thumb-gray-700">
+                    <div id="no-files-msg" class="text-center text-gray-600 mt-4 text-xs">
+                        <i class="fa-regular fa-folder-open text-2xl mb-1"></i>
+                        <p>Nenhum arquivo.</p>
+                    </div>
+                </div>
+             </div>
+        </div>
+    </aside>
+
+    <!-- Modals -->
+    <!-- Tools Confirmation Modal -->
+    <div id="confirmation-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-white">Confirmation Required</h3>
+                <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-xl"></i>
+            </div>
+            
+            <div class="space-y-3 mb-6">
+                <p class="text-gray-300">The AI wants to perform the following action:</p>
+                <div class="bg-black/50 p-3 rounded-lg border border-gray-800 font-mono text-xs md:text-sm text-blue-300 overflow-x-auto">
+                    <p id="modal-tool-name" class="font-bold mb-1">Tool: run_web_agent</p>
+                    <pre id="modal-tool-args" class="text-gray-400 whitespace-pre-wrap">Args: { ... }</pre>
+                </div>
+            </div>
+
+            <div class="flex gap-3 justify-end">
+                <button id="btn-deny" class="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors font-medium">
+                    Deny
+                </button>
+                <button id="btn-approve" class="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-green-500 hover:bg-green-400 text-black font-bold transition-colors shadow-lg shadow-green-500/20">
+                    Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div id="task-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white">Nova Tarefa</h3>
+                <button onclick="toggleTaskModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Description -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-1">Descrição</label>
+                    <input type="text" id="task-desc" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 outline-none transition-colors" placeholder="Ex: Arrumar quarto">
+                </div>
+
+                <!-- Due Date -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-1">Data de Entrega (Opcional)</label>
+                    <input type="date" id="task-date" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-blue-500 outline-none transition-colors">
+                </div>
+
+                <!-- Priority -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-2">Prioridade</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="selectPriority('low')" id="prio-low" class="prio-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-all">
+                            <div class="w-2 h-2 rounded-full bg-green-500"></div> Sem Tempo
+                        </button>
+                        <button onclick="selectPriority('medium')" id="prio-medium" class="prio-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-all">
+                            <div class="w-2 h-2 rounded-full bg-yellow-500"></div> Médio
+                        </button>
+                        <button onclick="selectPriority('high')" id="prio-high" class="prio-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-all">
+                            <div class="w-2 h-2 rounded-full bg-orange-500"></div> Alto
+                        </button>
+                        <button onclick="selectPriority('urgent')" id="prio-urgent" class="prio-btn flex items-center justify-center gap-2 p-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all">
+                            <div class="w-2 h-2 rounded-full bg-red-500"></div> Urgente
+                        </button>
+                    </div>
+                    <input type="hidden" id="task-priority" value="low">
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button onclick="submitTask()" class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors shadow-lg shadow-blue-500/20">
+                    Adicionar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DEV DASHBOARD MODAL -->
+    <div id="dev-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-gray-900 border border-glass-border rounded-xl w-full max-w-4xl shadow-2xl flex flex-col h-[80vh] overflow-hidden">
+            <div class="p-4 border-b border-glass-border flex justify-between items-center bg-black/40">
+                <h2 class="text-lg font-semibold text-gray-200 flex items-center gap-2">
+                    <i class="fa-solid fa-terminal text-green-500"></i> Developer Logs
+                </h2>
+                <div class="flex gap-2">
+                    <button onclick="clearDevLogs()" class="text-xs px-3 py-1 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-colors">Clear</button>
+                    <button onclick="toggleDevModal(false)" class="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="dev-terminal-output" class="p-4 flex-1 overflow-y-auto font-mono text-[11px] text-green-400 leading-relaxed bg-[#0a0a0a] space-y-1 scrollbar-thin scrollbar-thumb-glass-border">
+                <div class="text-gray-500 italic">Connected to Athena Dev Stream...</div>
+                <!-- Logs will be appended here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL (v4.0) -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-sliders mr-2"></i>Configurações</h3>
+                <button onclick="toggleSettingsModal(false)" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-6">
+                 <!-- Microphone Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Microfone</label>
+                    <select id="mic-select" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 outline-none transition-colors">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button onclick="saveSettings()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors shadow-lg shadow-blue-500/20 text-sm">
+                    Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Preview Modal -->
+    <div id="camera-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-2xl w-full shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-camera mr-2"></i>Preview da Câmera</h3>
+                <button onclick="closeCameraModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Video Preview -->
+                <div class="relative bg-black rounded-lg overflow-hidden" style="aspect-ratio: 4/3;">
+                    <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
+                    <div id="camera-indicator" class="absolute top-4 right-4 flex items-center gap-2 bg-red-500/80 text-white px-3 py-1 rounded-full text-xs font-bold hidden">
+                        <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                        STREAMING
+                    </div>
+                </div>
+                
+                <!-- Controls -->
+                <div class="flex gap-3 justify-center">
+                    <button id="toggle-camera-btn" onclick="toggleCameraFacing()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors">
+                        <i class="fa-solid fa-rotate mr-2"></i>Alternar Câmera
+                    </button>
+                    <button id="start-video-stream-btn" onclick="startVideoStream()" class="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold transition-colors shadow-lg shadow-green-500/20">
+                        <i class="fa-solid fa-play mr-2"></i>Iniciar Stream
+                    </button>
+                    <button id="stop-video-stream-btn" onclick="stopVideoStream()" class="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition-colors shadow-lg shadow-red-500/20 hidden">
+                        <i class="fa-solid fa-stop mr-2"></i>Parar Stream
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script src="/static/app.v4.js?v=4.6"></script>
+    <script>
+        // Close mobile menu on resize if switching to desktop
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                const menu = document.getElementById('mobile-menu');
+                if (menu && !menu.classList.contains('hidden')) {
+                    toggleMobileMenu();
+                }
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.classList.add('flex');
+            }
+            if (window.innerWidth >= 1024) {
+                const panel = document.getElementById('visual-panel');
+                if (panel) {
+                    panel.classList.remove('hidden', 'fixed', 'inset-0', 'z-40');
+                    panel.classList.add('flex');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
