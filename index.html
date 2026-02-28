@@ -564,7 +564,15 @@
     </div>
 
 
-    <!-- Scripts -->
+    <!-- ⚙️ Configuração do Backend
+         Em produção (Vercel): define a URL permanente do ngrok.
+         Em dev local: deixe como '' para usar o mesmo host. -->
+    <script>
+        window.ATHENA_BACKEND_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? ''  // dev local — usa mesmo host
+            : 'https://maddison-dampish-ignacio.ngrok-free.dev';  // produção — ngrok permanente
+    </script>
+
     <script src="/static/app.v4.js?v=4.6"></script>
     <script>
         // Close mobile menu on resize if switching to desktop

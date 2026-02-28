@@ -206,7 +206,9 @@ textInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-const API_URL = window.location.protocol + '//' + window.location.host;
+// Se ATHENA_BACKEND_URL estiver definido (Vercel/produção), usa ele.
+// Em dev local (localhost), usa o mesmo host automaticamente.
+const API_URL = window.ATHENA_BACKEND_URL || (window.location.protocol + '//' + window.location.host);
 async function sendMessage() {
     const text = textInput.value.trim();
     if (!text && !activeAttachment) return;
