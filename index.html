@@ -210,6 +210,10 @@
                 <i class="fa-solid fa-terminal"></i>
             </button>
 
+            <button onclick="openContactsModal()" title="Agenda WhatsApp" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all">
+                <i class="fa-solid fa-address-book"></i>
+            </button>
+
             <button onclick="toggleSettingsModal(true)" title="Configurações" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all">
                 <i class="fa-solid fa-gear"></i>
             </button>
@@ -430,6 +434,97 @@
                 <button onclick="saveSettings()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors shadow-lg shadow-blue-500/20 text-sm">
                     Salvar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTACTS MODAL -->
+    <div id="contacts-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+            
+            <!-- Header -->
+            <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-black/30">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-brands fa-whatsapp text-green-400"></i>
+                    Agenda WhatsApp
+                </h2>
+                <button onclick="closeContactsModal()" class="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Add Contact Form -->
+            <div class="p-4 border-b border-gray-800 bg-green-500/5">
+                <p class="text-[10px] font-bold text-green-400 uppercase tracking-widest mb-3">Adicionar Contato</p>
+                <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <input id="contact-name-input" type="text" placeholder="Nome completo" autocomplete="off"
+                            class="flex-1 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-green-500/60 outline-none transition-colors">
+                        <input id="contact-phone-input" type="tel" placeholder="5531999999999" autocomplete="off"
+                            class="w-40 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-green-500/60 outline-none transition-colors font-mono">
+                    </div>
+                    <!-- Nicknames input -->
+                    <div>
+                        <div id="nicknames-tags" class="flex flex-wrap gap-1.5 mb-1.5 empty:hidden"></div>
+                        <div class="flex gap-2">
+                            <input id="nickname-input" type="text" placeholder="Apelido (Enter para adicionar)" autocomplete="off"
+                                onkeydown="handleNicknameKeydown(event)"
+                                class="flex-1 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-green-500/60 outline-none transition-colors">
+                            <button onclick="addNicknameTag()" class="px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-gray-600 mt-1">Ex: VC, Conguitos, Vitor C. — a Athena vai reconhecer todos.</p>
+                    </div>
+                    <button onclick="saveNewContact()" class="w-full py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-bold transition-colors shadow-lg shadow-green-500/20">
+                        <i class="fa-solid fa-user-plus mr-1"></i> Salvar Contato
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contacts List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-gray-700" id="contacts-list">
+                <div id="contacts-empty" class="text-center text-gray-600 text-xs mt-8 flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-address-book text-3xl"></i>
+                    <p>Nenhum contato salvo ainda.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTACT EDIT MODAL -->
+    <div id="contact-edit-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[110] hidden items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm shadow-2xl p-5">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-white">Editar Contato</h3>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex flex-col gap-3">
+                <input id="edit-contact-id" type="hidden">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Nome</label>
+                    <input id="edit-name-input" type="text" class="w-full mt-1 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500/60 outline-none transition-colors">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Telefone</label>
+                    <input id="edit-phone-input" type="tel" class="w-full mt-1 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:border-blue-500/60 outline-none transition-colors">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Apelidos</label>
+                    <div id="edit-nicknames-tags" class="flex flex-wrap gap-1.5 my-1.5 empty:hidden"></div>
+                    <div class="flex gap-2">
+                        <input id="edit-nickname-input" type="text" placeholder="Novo apelido" autocomplete="off"
+                            onkeydown="handleEditNicknameKeydown(event)"
+                            class="flex-1 bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-blue-500/60 outline-none transition-colors">
+                        <button onclick="addEditNicknameTag()" class="px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button onclick="closeEditModal()" class="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold transition-colors">Cancelar</button>
+                    <button onclick="submitEditContact()" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors">Salvar</button>
+                </div>
             </div>
         </div>
     </div>

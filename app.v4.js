@@ -78,8 +78,32 @@ function handleMessage(msg) {
         } else if (msg.payload.includes("Standby")) {
             statusDot.className = "w-2 h-2 rounded-full bg-yellow-500";
         }
+
+    } else if (msg.type === "log") {
+        // Exibe no painel Developer Logs
+        appendDevLog(msg.payload);
+
+    } else if (msg.type === "athena_status") {
+        // Estado da sessão Live API: "connecting", "connected", "reconnecting"
+        const state = msg.payload;
+        const dotMobile = document.getElementById('status-dot-mobile');
+        if (state === "connecting" || state === "reconnecting") {
+            const label = state === "reconnecting" ? "Reconectando..." : "Conectando...";
+            statusText.innerText = label;
+            statusDot.className = "w-2.5 h-2.5 rounded-full bg-yellow-500 z-10 relative shadow-[0_0_8px_rgba(234,179,8,0.6)]";
+            if (dotMobile) dotMobile.className = "w-2 h-2 rounded-full bg-yellow-500";
+        } else if (state === "connected") {
+            statusText.innerText = "Athena Online";
+            statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 z-10 relative shadow-[0_0_8px_rgba(34,197,94,0.6)]";
+            if (dotMobile) dotMobile.className = "w-2 h-2 rounded-full bg-green-500";
+        } else if (state === "error") {
+            statusText.innerText = "Erro na sessão";
+            statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 z-10 relative";
+            if (dotMobile) dotMobile.className = "w-2 h-2 rounded-full bg-red-500";
+        }
     }
 }
+
 
 function showPlaceholder() {
     chatHistory.innerHTML = `
@@ -1522,3 +1546,240 @@ function toggleVisualPanel() {
         panel.classList.remove('flex');
     }
 }
+
+// ═══════════════════════════════════════════════════════════
+// 📒 CONTACTS AGENDA (WhatsApp)
+// ═══════════════════════════════════════════════════════════
+
+let _pendingNicknames = [];      // Apelidos à serem salvos no novo contato
+let _editNicknames = [];         // Apelidos do contato em edição
+
+// Abre o modal e carrega os contatos
+function openContactsModal() {
+    const modal = document.getElementById('contacts-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    _pendingNicknames = [];
+    renderNicknameTags('nicknames-tags', _pendingNicknames);
+    loadContacts();
+}
+
+function closeContactsModal() {
+    const modal = document.getElementById('contacts-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    // Limpa o formulário
+    document.getElementById('contact-name-input').value = '';
+    document.getElementById('contact-phone-input').value = '';
+    document.getElementById('nickname-input').value = '';
+    _pendingNicknames = [];
+    renderNicknameTags('nicknames-tags', _pendingNicknames);
+}
+
+// Carrega contatos da API
+async function loadContacts() {
+    try {
+        const res = await fetch(`${API_URL}/api/contacts`);
+        const contacts = await res.json();
+        renderContacts(contacts);
+    } catch (e) {
+        console.error('[Contacts] Failed to load:', e);
+    }
+}
+
+// Renderiza a lista de contatos
+function renderContacts(contacts) {
+    const list = document.getElementById('contacts-list');
+    const empty = document.getElementById('contacts-empty');
+    
+    // Remove cards existentes (mantém o #contacts-empty)
+    list.querySelectorAll('.contact-card').forEach(c => c.remove());
+
+    if (!contacts || contacts.length === 0) {
+        if (empty) empty.style.display = '';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    contacts.forEach(contact => {
+        const card = document.createElement('div');
+        card.className = 'contact-card flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:border-green-500/20 transition-all group';
+        
+        // Avatar com iniciais
+        const initials = contact.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        
+        // Badges de apelidos
+        const nickBadges = (contact.nicknames || []).map(n =>
+            `<span class="px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-[10px] font-medium border border-green-500/20">${n}</span>`
+        ).join('');
+
+        card.innerHTML = `
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-green-500/30 to-emerald-600/20 border border-green-500/20 flex items-center justify-center flex-shrink-0 text-green-300 font-bold text-xs">${initials}</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-white leading-tight">${contact.name}</p>
+                <p class="text-[11px] text-gray-500 font-mono mt-0.5">+${contact.phone}</p>
+                ${nickBadges ? `<div class="flex flex-wrap gap-1 mt-1.5">${nickBadges}</div>` : ''}
+            </div>
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button onclick="openEditModal('${contact.id}', ${JSON.stringify(contact.name).replace(/'/g, "\\'")} , '${contact.phone}', ${JSON.stringify(contact.nicknames || [])})"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors" title="Editar">
+                    <i class="fa-solid fa-pen text-xs"></i>
+                </button>
+                <button onclick="deleteContact('${contact.id}')"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remover">
+                    <i class="fa-solid fa-trash text-xs"></i>
+                </button>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+
+// ─── Nicknames tags (novo contato) ───────────────────────────────────────────
+
+function handleNicknameKeydown(event) {
+    if (event.key === 'Enter') { event.preventDefault(); addNicknameTag(); }
+}
+
+function addNicknameTag() {
+    const input = document.getElementById('nickname-input');
+    const value = input.value.trim();
+    if (!value || _pendingNicknames.includes(value)) { input.value = ''; return; }
+    _pendingNicknames.push(value);
+    input.value = '';
+    renderNicknameTags('nicknames-tags', _pendingNicknames, removeNicknameTag);
+}
+
+function removeNicknameTag(index) {
+    _pendingNicknames.splice(index, 1);
+    renderNicknameTags('nicknames-tags', _pendingNicknames, removeNicknameTag);
+}
+
+// ─── Nicknames tags (editar contato) ─────────────────────────────────────────
+
+function handleEditNicknameKeydown(event) {
+    if (event.key === 'Enter') { event.preventDefault(); addEditNicknameTag(); }
+}
+
+function addEditNicknameTag() {
+    const input = document.getElementById('edit-nickname-input');
+    const value = input.value.trim();
+    if (!value || _editNicknames.includes(value)) { input.value = ''; return; }
+    _editNicknames.push(value);
+    input.value = '';
+    renderNicknameTags('edit-nicknames-tags', _editNicknames, removeEditNicknameTag);
+}
+
+function removeEditNicknameTag(index) {
+    _editNicknames.splice(index, 1);
+    renderNicknameTags('edit-nicknames-tags', _editNicknames, removeEditNicknameTag);
+}
+
+// ─── Renderiza tags de apelidos no container informado ───────────────────────
+
+function renderNicknameTags(containerId, nicknames, removeCallback) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    nicknames.forEach((nick, i) => {
+        const tag = document.createElement('span');
+        tag.className = 'flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-[11px] border border-green-500/30';
+        tag.innerHTML = `${nick} <button onclick="${removeCallback ? removeCallback.name + '(' + i + ')' : ''}" class="ml-0.5 text-green-400/60 hover:text-red-400 transition-colors"><i class="fa-solid fa-xmark text-[9px]"></i></button>`;
+        container.appendChild(tag);
+    });
+}
+
+// ─── Salvar novo contato ──────────────────────────────────────────────────────
+
+async function saveNewContact() {
+    const name = document.getElementById('contact-name-input').value.trim();
+    const phone = document.getElementById('contact-phone-input').value.trim();
+
+    if (!name || !phone) {
+        showToast('Atenção', 'Nome e telefone são obrigatórios.', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/api/contacts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, phone, nicknames: _pendingNicknames })
+        });
+        if (!res.ok) throw new Error('API error');
+
+        showToast('Contato salvo! ✅', `${name} adicionado à agenda.`, 'success');
+        document.getElementById('contact-name-input').value = '';
+        document.getElementById('contact-phone-input').value = '';
+        document.getElementById('nickname-input').value = '';
+        _pendingNicknames = [];
+        renderNicknameTags('nicknames-tags', _pendingNicknames);
+        await loadContacts();
+    } catch (e) {
+        showToast('Erro', 'Não foi possível salvar o contato.', 'error');
+        console.error('[Contacts] Save failed:', e);
+    }
+}
+
+// ─── Deletar contato ──────────────────────────────────────────────────────────
+
+async function deleteContact(id) {
+    if (!confirm('Remover este contato da agenda?')) return;
+    try {
+        const res = await fetch(`${API_URL}/api/contacts/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('API error');
+        showToast('Removido', 'Contato excluído da agenda.', 'info');
+        await loadContacts();
+    } catch (e) {
+        showToast('Erro', 'Não foi possível remover o contato.', 'error');
+        console.error('[Contacts] Delete failed:', e);
+    }
+}
+
+// ─── Editar contato ───────────────────────────────────────────────────────────
+
+function openEditModal(id, name, phone, nicknames) {
+    document.getElementById('edit-contact-id').value = id;
+    document.getElementById('edit-name-input').value = name;
+    document.getElementById('edit-phone-input').value = phone;
+    _editNicknames = Array.isArray(nicknames) ? [...nicknames] : [];
+    renderNicknameTags('edit-nicknames-tags', _editNicknames, removeEditNicknameTag);
+
+    const modal = document.getElementById('contact-edit-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('contact-edit-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function submitEditContact() {
+    const id = document.getElementById('edit-contact-id').value;
+    const name = document.getElementById('edit-name-input').value.trim();
+    const phone = document.getElementById('edit-phone-input').value.trim();
+
+    if (!name || !phone) {
+        showToast('Atenção', 'Nome e telefone são obrigatórios.', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/api/contacts/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, phone, nicknames: _editNicknames })
+        });
+        if (!res.ok) throw new Error('API error');
+
+        showToast('Atualizado! ✅', `${name} foi atualizado na agenda.`, 'success');
+        closeEditModal();
+        await loadContacts();
+    } catch (e) {
+        showToast('Erro', 'Não foi possível atualizar o contato.', 'error');
+        console.error('[Contacts] Update failed:', e);
+    }
+}
+
